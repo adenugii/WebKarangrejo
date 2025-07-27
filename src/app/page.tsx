@@ -6,6 +6,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import dynamic from "next/dynamic";
+import { supabase } from "@/lib/supabaseClient";
 
 const LeafletMap = dynamic(() => import("./LeafletMap"), {
   ssr: false,
@@ -21,8 +22,14 @@ export default function Home() {
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [newsData, setNewsData] = useState<any[]>([]);
+  const [population, setPopulation] = useState(0);
+  const [families, setFamilies] = useState(0);
+  const [males, setMales] = useState(0);
+  const [females, setFemales] = useState(0);
   const parallaxRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const adminSectionRef = useRef<HTMLDivElement>(null);
 
+  // Parallax effect
   useEffect(() => {
     const handleScroll = () => {
       parallaxRefs.current.forEach((ref) => {
@@ -37,23 +44,78 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Image carousel and news fetch
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % images.length);
     }, 5000);
 
-    fetch("/news.json")
-      .then((response) => response.json())
-      .then((data) => {
-        const sortedData = data.sort(
-          (a: any, b: any) =>
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-        setNewsData(sortedData);
-      })
-      .catch((error) => console.error("Error fetching news data:", error));
+    // Fetch berita dari Supabase, bersihkan kategori dan image
+    const fetchBerita = async () => {
+      const { data, error } = await supabase
+        .from("berita")
+        .select("*")
+        .order("created_at", { ascending: false }) 
+        .limit(5);
+      if (!error && data) {
+        console.log("Berita fetched:", data);
+        // Bersihkan kategori dari tag HTML dan pastikan image_url dipakai
+        const cleanData = data.map((item: any) => ({
+          ...item,
+          kategori: typeof item.kategori === "string"
+            ? item.kategori.replace(/<[^>]+>/g, "") // hapus tag html
+            : item.kategori,
+          imgurl: item.image_url || "", // gunakan image_url dari database
+        }));
+        setNewsData(cleanData);
+      }
+    };
+
+    fetchBerita();
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Count-up animation
+  useEffect(() => {
+    const countUp = (
+      setValue: React.Dispatch<React.SetStateAction<number>>,
+      target: number,
+      duration: number
+    ) => {
+      const increment = target / (duration / 16); // 60fps
+      let current = 0;
+
+      const update = () => {
+        current += increment;
+        if (current < target) {
+          setValue(Math.round(current));
+          requestAnimationFrame(update);
+        } else {
+          setValue(target);
+        }
+      };
+      update();
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          countUp(setPopulation, 10488, 2000); // 2 seconds
+          countUp(setFamilies, 2500, 2000);
+          countUp(setMales, 5244, 2000);
+          countUp(setFemales, 5244, 2000);
+          observer.disconnect(); // Run animation only once
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (adminSectionRef.current) {
+      observer.observe(adminSectionRef.current);
+    }
+
+    return () => observer.disconnect();
   }, []);
 
   return (
@@ -207,7 +269,7 @@ export default function Home() {
           </div>
 
           {/* Administrasi Penduduk */}
-          <div className="mb-16">
+          <div className="mb-16" ref={adminSectionRef}>
             <h3 className="text-4xl font-bold font-sans text-black text-center md:text-left">
               Administrasi Penduduk
             </h3>
@@ -223,9 +285,12 @@ export default function Home() {
                       Jumlah Penduduk
                     </p>
                   </div>
-                  <div className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center">
+                  <div
+                    className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center"
+                    aria-live="polite"
+                  >
                     <p className="text-white font-sans text-lg font-bold text-center">
-                      10,488
+                      {population.toLocaleString("id-ID")}
                     </p>
                   </div>
                 </div>
@@ -235,9 +300,12 @@ export default function Home() {
                       Kepala Keluarga
                     </p>
                   </div>
-                  <div className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center">
+                  <div
+                    className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center"
+                    aria-live="polite"
+                  >
                     <p className="text-white font-sans text-lg font-bold text-center">
-                      2,500
+                      {families.toLocaleString("id-ID")}
                     </p>
                   </div>
                 </div>
@@ -249,9 +317,12 @@ export default function Home() {
                       Laki-laki
                     </p>
                   </div>
-                  <div className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center">
+                  <div
+                    className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center"
+                    aria-live="polite"
+                  >
                     <p className="text-white font-sans text-lg font-bold text-center">
-                      5,244
+                      {males.toLocaleString("id-ID")}
                     </p>
                   </div>
                 </div>
@@ -261,9 +332,12 @@ export default function Home() {
                       Perempuan
                     </p>
                   </div>
-                  <div className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center">
+                  <div
+                    className="bg-[#4E6922] rounded-lg shadow-md p-3 flex items-center justify-center"
+                    aria-live="polite"
+                  >
                     <p className="text-white font-sans text-lg font-bold text-center">
-                      5,244
+                      {females.toLocaleString("id-ID")}
                     </p>
                   </div>
                 </div>
@@ -388,13 +462,6 @@ export default function Home() {
             <div className="max-h-[600px] overflow-y-auto">
               <div className="grid grid-cols-1 gap-6">
                 {newsData.slice(0, 5).map((news) => {
-                  const shortDesc =
-                    news.description
-                      .split("\n\n")[0]
-                      .split(". ")
-                      .slice(0, 2)
-                      .join(". ") + (news.description.includes(".") ? "." : "");
-
                   return (
                     <article
                       key={news.id}
@@ -402,12 +469,18 @@ export default function Home() {
                     >
                       {/* Image Container */}
                       <div className="w-full md:w-32 h-40 md:h-full relative flex-shrink-0">
-                        <Image
-                          src={news.imgurl}
-                          alt={news.title}
-                          fill
-                          className="object-cover rounded-lg"
-                        />
+                        {news.imgurl ? (
+                          <Image
+                            src={news.imgurl}
+                            alt={news.title}
+                            fill
+                            className="object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-lg text-gray-400 text-xs">
+                            Tidak ada gambar
+                          </div>
+                        )}
                       </div>
                       {/* Content */}
                       <div className="flex-1 flex flex-col justify-between overflow-hidden">
@@ -415,18 +488,19 @@ export default function Home() {
                           <h3 className="text-lg font-semibold font-sans line-clamp-2">
                             {news.title}
                           </h3>
-                          <p className="text-gray-700 font-sans text-sm line-clamp-3 md:line-clamp-2">
-                            {shortDesc}
-                          </p>
+                          <div
+                            className="max-w-xs overflow-auto text-gray-700 font-sans text-sm line-clamp-3 md:line-clamp-2"
+                            dangerouslySetInnerHTML={{ __html: news.description }}
+                          />
                         </div>
                         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-4 mt-3">
                           <div className="flex items-center gap-2">
                             <p className="text-gray-500 text-xs font-sans">
-                              {new Date(news.date).toLocaleDateString("id-ID")}
+                              {new Date(news.created_at).toLocaleDateString("id-ID")}
                             </p>
                             <span className="text-gray-300">|</span>
                             <p className="text-gray-500 text-xs font-sans">
-                              {news.category}
+                              {news.kategori}
                             </p>
                           </div>
                           <Link href={`/berita/${news.id}`}>
